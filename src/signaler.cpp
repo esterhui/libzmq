@@ -72,6 +72,10 @@
 #include <sys/socket.h>
 #endif
 
+#if defined ZMQ_HAVE_RTEMS
+#include <sys/un.h>
+#endif
+
 #if !defined (ZMQ_HAVE_WINDOWS)
 // Helper to sleep for specific number of milliseconds (or until signal)
 //
@@ -549,6 +553,48 @@ int zmq::signaler_t::make_fdpair (fd_t *r_, fd_t *w_)
     close (listener);
 
     return 0;
+
+#elif defined ZMQ_HAVE_RTEMS
+    struct sockaddr_un addr1;
+    struct sockaddr_un addr2;
+    socklen_t addr2_len;
+    int sd;
+    int rc;
+    // FIXME: What if nn_efd_init is called multiple times
+    // we need unique socket names. Incrementing a counter
+    // is a horrible way to do this. Look at how socketpair()
+    // does this.
+    static int sock_count=0;
+    char sock_name[80];
+    snprintf(sock_name,sizeof(sock_name),"nn_unix%d.socket",sock_count);
+    sock_count++;
+    sd = socket(PF_UNIX, SOCK_STREAM, 0);
+    errno_assert (sd >= 0);
+    addr1.sun_family = AF_UNIX;
+    strcpy(addr1.sun_path, sock_name);
+    // bind
+    rc = bind(sd, (const struct sockaddr *) &addr1, SUN_LEN(&addr1));
+    errno_assert(rc == 0);
+    // Listen on addr
+    rc = listen(sd, 0);
+    errno_assert(rc == 0);
+    // Open another socket and listen
+    *r_ = socket(PF_UNIX, SOCK_STREAM, 0);
+    errno_assert(*r_ >= 0);
+    rc = connect(*r_, (const struct sockaddr *) &addr1, SUN_LEN(&addr1));
+    errno_assert(rc == 0);
+
+    // Now accept the connection
+    addr2_len = sizeof(addr2);
+    *w_ = accept(sd, (struct sockaddr *) &addr2, &addr2_len);
+    errno_assert(*w_ >= 0);
+
+    // Close listener socket, don't need it.
+    rc = close_wait_ms (sd);
+    errno_assert (rc == 0);
+
+    return 0;
+
 
 #else
     // All other implementations support socketpair()

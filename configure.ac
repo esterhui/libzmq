@@ -193,6 +193,13 @@ case "${host_os}" in
         CPPFLAGS="-D__BSD_VISIBLE $CPPFLAGS"
         AC_DEFINE(ZMQ_HAVE_FREEBSD, 1, [Have FreeBSD OS])
         ;;
+    *rtems*)
+        # Define on FreeBSD to enable all library features
+        CPPFLAGS="-D__BSD_VISIBLE $CPPFLAGS"
+        LDFLAGS="-lbsd $LDFLAGS"
+        AC_DEFINE(ZMQ_HAVE_FREEBSD, 1, [Have FreeBSD OS])
+        AC_DEFINE(ZMQ_HAVE_RTEMS, 1, [Have RTEMS OS])
+        ;;
     *darwin*)
         # Define on Darwin to enable all library features
         CPPFLAGS="-D_DARWIN_C_SOURCE $CPPFLAGS"
